@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Phishing Shield{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container-main">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="{{ url_for('index') }}" class="logo">
+                    <span class="logo-icon"><i class="fas fa-shield-alt"></i></span>
+                    <span class="logo-text">AI-Phishing<br>Shield</span>
+                </a>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('dashboard') }}" class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="fas fa-th-large"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('analyzer') }}" class="nav-item {% if request.endpoint == 'analyzer' %}active{% endif %}">
+                    <i class="fas fa-envelope"></i>
+                    <span>Email Detector</span>
+                </a>
+                <a href="#" class="nav-item disabled" title="Coming soon">
+                    <i class="fas fa-comment-sms"></i>
+                    <span>SMS Detector</span>
+                </a>
+                <a href="#" class="nav-item disabled" title="Coming soon">
+                    <i class="fas fa-link"></i>
+                    <span>URL Detector</span>
+                </a>
+                <a href="{{ url_for('history') }}" class="nav-item {% if request.endpoint == 'history' %}active{% endif %}">
+                    <i class="fas fa-clock-rotate-left"></i>
+                    <span>History</span>
+                </a>
+                <a href="{{ url_for('about') }}" class="nav-item {% if request.endpoint == 'about' %}active{% endif %}">
+                    <i class="fas fa-circle-info"></i>
+                    <span>About</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="#" class="nav-item disabled" title="Coming soon">
+                    <i class="fas fa-gear"></i>
+                    <span>Settings</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <h1>{% block header_title %}Welcome{% endblock %}</h1>
+                    <p class="header-subtitle">{% block header_subtitle %}Intelligent Phishing Detection System{% endblock %}</p>
+                </div>
+                <div class="header-right">
+                    <div class="status-indicator">
+                        <span class="status-dot green"></span>
+                        <span>{% block header_status %}System Online{% endblock %}</span>
+                    </div>
+                    <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode">
+                        <i class="fas fa-moon" aria-hidden="true"></i>
+                    </button>
+                    <button class="notification-btn"><i class="fas fa-bell"></i></button>
+                </div>
+            </header>
+
+            <main class="content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
