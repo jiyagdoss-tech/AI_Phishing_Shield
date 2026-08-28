@@ -445,3 +445,11 @@ Possible future improvements include:
 ## License and Contributions
 
 This repository is maintained as an educational project. Contributions that improve detection accuracy, documentation, accessibility, testing, or secure coding practices are welcome.
+
+## Contacts
+
+If you have any questions you can reach out to the below email:
+
+- Email: jiya.g.doss@gmail.com
+
+
