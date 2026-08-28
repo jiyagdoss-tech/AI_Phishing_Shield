@@ -22,6 +22,7 @@ The project is designed for cybersecurity education, controlled demonstrations, 
 - [Security and Privacy](#security-and-privacy)
 - [Educational Value](#educational-value)
 - [Limitations and Future Work](#limitations-and-future-work)
+- [Contacts](#contacts)
 
 ## Why This Project Exists
 
