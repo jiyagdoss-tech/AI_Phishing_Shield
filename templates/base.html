@@ -30,11 +30,11 @@
                     <i class="fas fa-envelope"></i>
                     <span>Email Detector</span>
                 </a>
-                <a href="#" class="nav-item disabled" title="Coming soon">
+                <a href="{{ url_for('sms_analyzer') }}" class="nav-item {% if request.endpoint == 'sms_analyzer' %}active{% endif %}">
                     <i class="fas fa-comment-sms"></i>
                     <span>SMS Detector</span>
                 </a>
-                <a href="#" class="nav-item disabled" title="Coming soon">
+                <a href="{{ url_for('url_analyzer') }}" class="nav-item {% if request.endpoint == 'url_analyzer' %}active{% endif %}">
                     <i class="fas fa-link"></i>
                     <span>URL Detector</span>
                 </a>
