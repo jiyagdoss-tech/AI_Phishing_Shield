@@ -293,3 +293,89 @@ class RenderHelpers:
             'Critical': 'risk-critical'
         }
         return classes.get(risk_level, 'risk-unknown')
+
+
+class TyposquatHelpers:
+    """
+    Helper functions for detecting typosquatted brand names, e.g. "ntflx"
+    for "netflix" or "amzn" for "amazon". Plain substring checks (`if
+    'netflix' in domain`) miss these because the full brand name never
+    literally appears - this uses fuzzy (edit-distance) matching instead.
+    """
+
+    @staticmethod
+    def levenshtein_distance(text_a, text_b):
+        """
+        Compute the Levenshtein (edit) distance between two strings: the
+        minimum number of single-character insertions, deletions, or
+        substitutions needed to turn one string into the other.
+
+        Args:
+            text_a (str): First string
+            text_b (str): Second string
+
+        Returns:
+            int: Edit distance between the two strings
+        """
+        a, b = text_a.lower(), text_b.lower()
+        if a == b:
+            return 0
+        if not a:
+            return len(b)
+        if not b:
+            return len(a)
+
+        previous_row = list(range(len(b) + 1))
+        for i, char_a in enumerate(a, start=1):
+            current_row = [i]
+            for j, char_b in enumerate(b, start=1):
+                insert_cost = current_row[j - 1] + 1
+                delete_cost = previous_row[j] + 1
+                substitute_cost = previous_row[j - 1] + (0 if char_a == char_b else 1)
+                current_row.append(min(insert_cost, delete_cost, substitute_cost))
+            previous_row = current_row
+
+        return previous_row[-1]
+
+    @staticmethod
+    def find_typosquat_match(tokens, brands, min_brand_length=4):
+        """
+        Check a list of short tokens (e.g. domain labels or a sender ID)
+        against a list of known brand names for close-but-not-exact
+        matches, catching character-dropping/substitution typosquats that
+        plain substring matching misses.
+
+        Args:
+            tokens (list): Candidate strings to check (words/labels)
+            brands (list): Known brand names to compare against
+            min_brand_length (int): Skip brands shorter than this - very
+                short brand names produce too many false positives when
+                fuzzy-matched
+
+        Returns:
+            dict or None: {'brand', 'candidate', 'distance'} for the
+                closest suspicious match found, or None if nothing is close
+        """
+        best_match = None
+
+        for brand in brands:
+            brand_lower = brand.lower()
+            if len(brand_lower) < min_brand_length:
+                continue
+
+            # Allow more edits for longer brand names, fewer for short ones
+            max_distance = 2 if len(brand_lower) > 5 else 1
+
+            for token in tokens:
+                token_lower = (token or '').lower()
+                if not token_lower or len(token_lower) < 3 or token_lower == brand_lower:
+                    continue
+                # Skip tokens whose length is too different to plausibly be a typo
+                if abs(len(token_lower) - len(brand_lower)) > max_distance:
+                    continue
+
+                distance = TyposquatHelpers.levenshtein_distance(token_lower, brand_lower)
+                if distance <= max_distance and (best_match is None or distance < best_match['distance']):
+                    best_match = {'brand': brand_lower, 'candidate': token_lower, 'distance': distance}
+
+        return best_match
