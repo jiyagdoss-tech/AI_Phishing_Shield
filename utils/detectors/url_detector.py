@@ -222,4 +222,3 @@ class URLDetector:
             'findings': findings,
             'risk_score': score
         }
-
