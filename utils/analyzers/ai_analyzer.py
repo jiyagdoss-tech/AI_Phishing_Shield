@@ -23,6 +23,23 @@ class AIAnalyzer:
             "Focus on: sender authenticity, URL legitimacy, urgency tactics, requests for credentials, "
             "and suspicious attachments. Be professional and direct."
         )
+
+        # System prompt for SMS/text message (smishing) analysis
+        self.system_prompt_sms = (
+            "You are a cybersecurity expert specializing in SMS phishing (smishing) detection. "
+            "Analyze text messages for phishing indicators and provide clear, concise assessments. "
+            "Focus on: sender number/ID legitimacy, shortened or suspicious links, urgency tactics, "
+            "requests for one-time codes (OTP) or personal info, and brand impersonation. "
+            "Be professional and direct."
+        )
+
+        self.system_prompt_url = (
+            "You are a cybersecurity expert specializing in phishing website URL analysis. "
+            "Evaluate only evidence visible in the URL structure and supplied metadata. "
+            "Focus on brand impersonation, deceptive domains, punycode, IP hosts, shorteners, "
+            "embedded credentials, suspicious account-action wording, and transport security. "
+            "Do not claim that you visited the website or verified its live content."
+        )
     
     def _check_ollama_connection(self):
         """Check if Ollama is running."""
@@ -59,6 +76,67 @@ class AIAnalyzer:
             print(f"Ollama API Error: {str(e)}")
             self.ollama_available = False
             return self._fallback_analysis(email_content, extracted_info)
+
+    def analyze_sms(self, sms_content, extracted_info):
+        """
+        Analyze SMS/text message using Ollama AI.
+
+        Args:
+            sms_content (str): SMS message text
+            extracted_info (dict): Extracted SMS components
+
+        Returns:
+            dict: AI analysis results
+        """
+        # Ollama may have started after Flask, so refresh availability before falling back.
+        if not self.ollama_available:
+            self.ollama_available = self._check_ollama_connection()
+
+        if not self.ollama_available:
+            return self._fallback_analysis_sms(sms_content, extracted_info)
+
+        try:
+            prompt = self._create_sms_analysis_prompt(sms_content, extracted_info)
+            response = self._call_ollama_api(prompt, system_prompt=self.system_prompt_sms)
+            analysis = self._parse_ai_response(response)
+            return analysis
+        except Exception as e:
+            print(f"Ollama API Error: {str(e)}")
+            self.ollama_available = False
+            return self._fallback_analysis_sms(sms_content, extracted_info)
+
+    def analyze_url(self, url, extracted_info, lexical_findings):
+        """Analyze a website URL with the local AI model."""
+        if not self.ollama_available:
+            self.ollama_available = self._check_ollama_connection()
+        if not self.ollama_available:
+            return self._fallback_analysis_url(lexical_findings)
+
+        try:
+            findings = '\n'.join(f"- {item['description']}" for item in lexical_findings) or '- No lexical warnings'
+            prompt = f"""Analyze this website URL for phishing risk:
+
+URL: {url}
+Domain: {extracted_info.get('domain', 'Unknown')}
+Scheme: {extracted_info.get('scheme', 'Unknown')}
+Path: {extracted_info.get('path', '/')}
+
+LEXICAL FINDINGS:
+{findings}
+
+Provide your analysis in this format:
+1. RISK LEVEL: [High/Moderate/Low]
+2. TOP 3 CONCERNS: [URL-specific concerns]
+3. EXPLANATION: [Explain only what can be inferred from the URL]
+4. RECOMMENDATION: [Safe action for the user]
+
+Be concise and professional."""
+            response = self._call_ollama_api(prompt, system_prompt=self.system_prompt_url)
+            return self._parse_ai_response(response)
+        except Exception as error:
+            print(f"Ollama URL API Error: {error}")
+            self.ollama_available = False
+            return self._fallback_analysis_url(lexical_findings)
     
     def _create_analysis_prompt(self, email_content, extracted_info):
         """Create user prompt for AI analysis (system prompt is separate)."""
@@ -83,14 +161,36 @@ Provide your analysis in this format:
 Be concise and professional."""
         return user_prompt
     
-    def _call_ollama_api(self, user_prompt):
+    def _create_sms_analysis_prompt(self, sms_content, extracted_info):
+        """Create user prompt for SMS analysis (system prompt is separate)."""
+        user_prompt = f"""Please analyze the following SMS text message for phishing (smishing) indicators:
+
+SMS CONTENT:
+{sms_content[:800]}
+
+---
+MESSAGE DETAILS:
+- Sender: {extracted_info.get('sender', 'Unknown')}
+- Links found: {len(extracted_info.get('links', []))}
+
+Provide your analysis in this format:
+1. RISK LEVEL: [High/Moderate/Low]
+2. TOP 3 CONCERNS: [List specific red flags found]
+3. EXPLANATION: [Why this message has this risk level]
+4. RECOMMENDATION: [What the user should do]
+5. Give some examples of similar smishing messages and how to avoid them
+
+Be concise and professional."""
+        return user_prompt
+    
+    def _call_ollama_api(self, user_prompt, system_prompt=None):
         """Call Ollama Chat API with system and user messages."""
         payload = {
             "model": self.model,
             "messages": [
                 {
                     "role": "system",
-                    "content": self.system_prompt
+                    "content": system_prompt or self.system_prompt
                 },
                 {
                     "role": "user",
@@ -234,4 +334,48 @@ Be concise and professional."""
                 'Start Ollama service for full AI analysis',
                 'Use rule-based detection results cautiously'
             ]
+        }
+
+    def _fallback_analysis_sms(self, sms_content, extracted_info):
+        """Fallback analysis when Ollama is not available (SMS/smishing)."""
+        return {
+            'ai_explanation': (
+                "⚠️ Ollama AI not available. Make sure Ollama is running:\n"
+                "1. Install Ollama from https://ollama.ai\n"
+                "2. Run: ollama pull mistral\n"
+                "3. Run: ollama serve\n"
+                "Using rule-based detection only."
+            ),
+            'risk_level': 'Moderate',
+            'risk_level_text': 'Moderate',
+            'top_concerns': ['AI analysis is unavailable', 'Only rule-based signals were evaluated'],
+            'explanation': 'The local AI service did not respond, so this result relies on deterministic detectors.',
+            'key_concerns': [
+                'AI model not accessible',
+                'Relying on pattern-based detection only'
+            ],
+            'recommendations': [
+                'Start Ollama service for full AI analysis',
+                'Use rule-based detection results cautiously'
+            ],
+            'recommendation': 'Start Ollama for contextual AI analysis',
+            'recommendation_bullets': [
+                'Start Ollama service for full AI analysis',
+                'Use rule-based detection results cautiously'
+            ]
+        }
+
+    def _fallback_analysis_url(self, lexical_findings):
+        """Return a structured fallback when URL AI analysis is unavailable."""
+        concerns = [item['description'] for item in lexical_findings[:3]]
+        return {
+            'ai_explanation': 'Ollama AI is unavailable. The result uses lexical URL checks only.',
+            'risk_level': 'Moderate' if concerns else 'Low',
+            'risk_level_text': 'AI unavailable',
+            'top_concerns': concerns or ['No strong lexical warning was detected'],
+            'explanation': 'The local AI service did not respond, so no live or contextual AI judgment was added.',
+            'key_concerns': concerns,
+            'recommendations': ['Verify the domain independently before opening it'],
+            'recommendation': 'Verify the domain independently before opening it',
+            'recommendation_bullets': ['Do not enter credentials unless the domain is confirmed']
         }
