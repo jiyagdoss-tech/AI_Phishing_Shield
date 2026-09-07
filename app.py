@@ -47,6 +47,18 @@ def analyzer():
     return render_template('analyzer.html')
 
 
+@app.route('/sms-analyzer')
+def sms_analyzer():
+    """SMS phishing (smishing) analyzer page."""
+    return render_template('sms_analyzer.html')
+
+
+@app.route('/url-analyzer')
+def url_analyzer():
+    """Website URL phishing analyzer page."""
+    return render_template('url_analyzer.html')
+
+
 @app.route('/api/analyze', methods=['POST'])
 def analyze():
     """
@@ -189,6 +201,199 @@ def analyze():
     except Exception as e:
         print(f"Error in analysis: {str(e)}")
         return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
+
+
+@app.route('/api/analyze-sms', methods=['POST'])
+def analyze_sms():
+    """
+    API endpoint for analyzing SMS/text message content.
+    Accepts JSON with sms_content or form data.
+    """
+    try:
+        sms_content = None
+        
+        # Try JSON first
+        if request.is_json:
+            data = request.get_json()
+            sms_content = data.get('sms_content', '').strip() if data else None
+        
+        # Fall back to form data
+        if not sms_content:
+            if 'sms_text' in request.form and request.form['sms_text'].strip():
+                sms_content = request.form['sms_text']
+        
+        # Validate SMS content
+        if not sms_content or not sms_content.strip():
+            return jsonify({'error': 'Please provide SMS content'}), 400
+        
+        # Run analysis
+        analysis_result = detection_engine.analyze_sms(sms_content)
+        
+        # Save to database
+        analysis_id = db.save_analysis(analysis_result)
+        
+        scores = analysis_result.get('scores', {})
+        breakdown = analysis_result.get('breakdown', {})
+        confidence_info = analysis_result.get('detection_confidence', {})
+        keywords_found = breakdown.get('keywords_found', {}) or {}
+        sender_rep = breakdown.get('sender_reputation', {}) or {}
+
+        # Max possible value for each detector, used to compute % flagged bars
+        # (no attachment detector for SMS - text messages don't carry file attachments)
+        detector_max = {
+            'keyword_score': 30,
+            'url_score': 25,
+            'regex_score': 100,
+            'sender_score': 20,
+            'ai_score': 100
+        }
+
+        def build_detector_row(key, label):
+            score = scores.get(key, 0) or 0
+            max_val = detector_max[key]
+            flagged = score / max_val >= 0.5 if max_val else False
+            return {
+                'label': label,
+                'score': round(score, 1),
+                'max': max_val,
+                'flagged': flagged,
+                'description': build_description(key)
+            }
+
+        def build_description(key):
+            if key == 'keyword_score':
+                parts = []
+                if keywords_found.get('urgent'):
+                    parts.append('urgent action keywords')
+                if keywords_found.get('credentials'):
+                    parts.append('credential requests')
+                if keywords_found.get('fear_tactics'):
+                    parts.append('fear tactics')
+                return ' + '.join(parts).capitalize() if parts else 'No suspicious keywords detected'
+            if key == 'url_score':
+                suspicious = breakdown.get('suspicious_urls', 0)
+                return f'{suspicious} suspicious URL(s) detected' if suspicious else 'No suspicious URLs detected'
+            if key == 'regex_score':
+                return 'Suspicious regex patterns detected' if scores.get('regex_score', 0) > 0 else 'No suspicious patterns detected'
+            if key == 'sender_score':
+                if sender_rep.get('sender_type') == 'phone_number':
+                    return 'Ordinary phone number, not a verified short code'
+                if sender_rep.get('sender_type') == 'alphanumeric_id':
+                    return 'Alphanumeric sender ID checked for brand impersonation'
+                return 'Sender number/ID reputation checked'
+            if key == 'ai_score':
+                return 'AI model flagged this message as risky' if scores.get('ai_score', 0) > 50 else 'AI model found low risk indicators'
+            return ''
+
+        # Format response for frontend
+        response = {
+            'id': analysis_id,
+            'risk_score': analysis_result.get('risk_score', 0),
+            'risk_level': analysis_result.get('risk_level', 'Unknown'),
+            'risk_summary': analysis_result.get('analysis_type', 'SMS analysis'),
+            'confidence': confidence_info.get('consensus', 'Moderate'),
+            'confidence_percentage': round(confidence_info.get('confidence_percentage', 0)),
+            'detectors_flagged': confidence_info.get('detectors_flagged', 0),
+            'total_detectors': confidence_info.get('total_detectors', 0),
+            'concerns': [],
+            'ai_explanation': analysis_result.get('ai_explanation', ''),
+            'risk_level_text': analysis_result.get('risk_level_text', ''),
+            'top_concerns': analysis_result.get('top_concerns', []),
+            'explanation': analysis_result.get('explanation', ''),
+            'recommendation_bullets': analysis_result.get('recommendation_bullets', []),
+            'recommendation': analysis_result.get('recommendations', ['Take appropriate action'])[0] if analysis_result.get('recommendations') else 'Review carefully',
+            'scores': {
+                'keyword_score': scores.get('keyword_score', 0),
+                'url_score': scores.get('url_score', 0),
+                'regex_score': scores.get('regex_score', 0),
+                'sender_score': scores.get('sender_score', 0),
+                'ai_score': scores.get('ai_score', 0)
+            },
+            'detectors': {
+                'keyword': build_detector_row('keyword_score', 'Keyword'),
+                'url': build_detector_row('url_score', 'URL'),
+                'regex': build_detector_row('regex_score', 'Regex'),
+                'sender': build_detector_row('sender_score', 'Sender')
+            }
+        }
+        
+        # Build concerns list from indicators
+        if analysis_result.get('detected_indicators'):
+            for idx, indicator in enumerate(analysis_result['detected_indicators'][:4]):
+                severity = 'high' if 'CRITICAL' in indicator or '🚨' in indicator else 'medium'
+                response['concerns'].append({
+                    'title': indicator.split('(')[0].strip() if '(' in indicator else indicator,
+                    'description': indicator,
+                    'severity': severity
+                })
+        
+        return jsonify(response), 200
+    
+    except Exception as e:
+        print(f"Error in SMS analysis: {str(e)}")
+        return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
+
+
+@app.route('/api/analyze-url', methods=['POST'])
+def analyze_url():
+    """Analyze a website URL and save the result."""
+    try:
+        data = request.get_json(silent=True) or {}
+        url = (data.get('url') or request.form.get('url', '')).strip()
+        if not url:
+            return jsonify({'error': 'Please provide a website URL'}), 400
+
+        analysis_result = detection_engine.analyze_url(url)
+        analysis_id = db.save_analysis(analysis_result)
+        scores = analysis_result.get('scores', {})
+        confidence = analysis_result.get('detection_confidence', {})
+        findings = analysis_result.get('breakdown', {}).get('url_findings', [])
+
+        return jsonify({
+            'id': analysis_id,
+            'url': analysis_result.get('input_content', url),
+            'domain': analysis_result.get('email_details', {}).get('sender', 'Unknown'),
+            'risk_score': analysis_result.get('risk_score', 0),
+            'risk_level': analysis_result.get('risk_level', 'Unknown'),
+            'confidence': confidence.get('consensus', 'Weak'),
+            'confidence_percentage': round(confidence.get('confidence_percentage', 0)),
+            'detectors_flagged': confidence.get('detectors_flagged', 0),
+            'total_detectors': confidence.get('total_detectors', 0),
+            'findings': findings,
+            'concerns': [
+                {
+                    'title': finding.get('description', 'Suspicious URL characteristic'),
+                    'description': finding.get('description', ''),
+                    'severity': 'high' if finding.get('points', 0) >= 25 else 'medium'
+                }
+                for finding in findings
+            ],
+            'ai_explanation': analysis_result.get('ai_explanation', ''),
+            'risk_level_text': analysis_result.get('risk_level_text', ''),
+            'top_concerns': analysis_result.get('top_concerns', []),
+            'explanation': analysis_result.get('explanation', ''),
+            'recommendation': analysis_result.get('recommendations', ['Verify the URL before opening it'])[0],
+            'recommendation_bullets': analysis_result.get('recommendation_bullets', []),
+            'detectors': {
+                'url': {
+                    'score': round(scores.get('url_score', 0), 1),
+                    'max': 100,
+                    'flagged': scores.get('url_score', 0) >= 50,
+                    'description': f'{len(findings)} URL warning(s) found' if findings else 'No strong lexical warnings found'
+                },
+                'ai': {
+                    'score': round(scores.get('ai_score', 0), 1),
+                    'max': 100,
+                    'flagged': scores.get('ai_score', 0) >= 50,
+                    'description': 'AI reviewed the URL structure and metadata'
+                }
+            }
+        }), 200
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
+    except Exception as error:
+        print(f'Error in URL analysis: {error}')
+        return jsonify({'error': f'Analysis failed: {error}'}), 500
 
 
 @app.route('/history')

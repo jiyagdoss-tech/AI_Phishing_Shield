@@ -5,6 +5,8 @@ Analyzes sender email address for phishing indicators.
 
 import re
 
+from utils.helpers import TyposquatHelpers
+
 
 class SenderDetector:
     """
@@ -101,6 +103,20 @@ class SenderDetector:
                             'claimed_domain': real_domain,
                             'actual_email': sender_email
                         })
+        
+        # Fuzzy/typo check - catches lookalikes like "ntflx-security.com" or
+        # "amaz0n-support.com" that don't literally contain the brand name,
+        # so the substring check above misses them
+        domain_part = sender_email.split('@')[-1] if '@' in sender_email else sender_email
+        domain_tokens = [token for token in re.split(r'[.\-]', domain_part.lower()) if token and token != 'www']
+        typo_match = TyposquatHelpers.find_typosquat_match(domain_tokens, list(self.known_company_domains.keys()))
+        if typo_match:
+            suspicious_matches.append({
+                'type': 'typosquat_domain',
+                'company': typo_match['brand'],
+                'lookalike_domain': typo_match['candidate'],
+                'actual_email': sender_email
+            })
         
         return suspicious_matches
     

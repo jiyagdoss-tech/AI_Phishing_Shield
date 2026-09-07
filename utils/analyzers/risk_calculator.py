@@ -27,6 +27,20 @@ class RiskCalculator:
         'attachment_detection': 0.10,   # 10%
         'ai_analysis': 0.40             # 40%
     }
+
+    # Detection weights for SMS analysis (no attachment detector - SMS has no files)
+    WEIGHTS_SMS = {
+        'keyword_detection': 0.15,      # 15%
+        'url_detection': 0.20,          # 20% (links matter more in smishing)
+        'regex_detection': 0.15,        # 15%
+        'sender_detection': 0.10,       # 10%
+        'ai_analysis': 0.40             # 40%
+    }
+
+    WEIGHTS_URL = {
+        'url_detection': 0.60,
+        'ai_analysis': 0.40
+    }
     
     def __init__(self):
         """Initialize calculator."""
@@ -70,6 +84,60 @@ class RiskCalculator:
         
         # Cap at 100
         return min(combined, 100)
+    
+    def calculate_combined_score_sms(self, scores_dict):
+        """
+        Calculate weighted combined risk score for SMS analysis.
+        Same idea as calculate_combined_score(), but without an attachment
+        detector since SMS messages don't carry file attachments.
+        
+        Args:
+            scores_dict (dict): Dictionary with detection scores:
+                {
+                    'keyword_score': float (0-30),
+                    'url_score': float (0-25),
+                    'regex_score': float (0-100),
+                    'sender_score': float (0-20),
+                    'ai_score': float (0-100)
+                }
+        
+        Returns:
+            float: Combined risk score (0-100)
+        """
+        keyword_normalized = min(scores_dict.get('keyword_score', 0) * 3.33, 100)
+        url_normalized = min(scores_dict.get('url_score', 0) * 4, 100)
+        regex_normalized = scores_dict.get('regex_score', 0)
+        sender_normalized = min(scores_dict.get('sender_score', 0) * 5, 100)
+        ai_normalized = scores_dict.get('ai_score', 0)
+        
+        combined = (
+            keyword_normalized * self.WEIGHTS_SMS['keyword_detection'] +
+            url_normalized * self.WEIGHTS_SMS['url_detection'] +
+            regex_normalized * self.WEIGHTS_SMS['regex_detection'] +
+            sender_normalized * self.WEIGHTS_SMS['sender_detection'] +
+            ai_normalized * self.WEIGHTS_SMS['ai_analysis']
+        )
+        
+        return min(combined, 100)
+
+    def calculate_combined_score_url(self, scores_dict):
+        """Calculate the final score for a standalone website URL."""
+        combined = (
+            scores_dict.get('url_score', 0) * self.WEIGHTS_URL['url_detection'] +
+            scores_dict.get('ai_score', 0) * self.WEIGHTS_URL['ai_analysis']
+        )
+        return min(combined, 100)
+
+    def get_confidence_indicator_url(self, scores_dict):
+        """Calculate agreement between lexical URL checks and AI analysis."""
+        scores = [scores_dict.get('url_score', 0), scores_dict.get('ai_score', 0)]
+        flagged_count = sum(1 for score in scores if score >= 50)
+        return {
+            'confidence_percentage': (flagged_count / len(scores)) * 100,
+            'detectors_flagged': flagged_count,
+            'total_detectors': len(scores),
+            'consensus': 'Strong' if flagged_count == 2 else 'Moderate' if flagged_count == 1 else 'Weak'
+        }
     
     def score_to_risk_level(self, score):
         """
@@ -126,6 +194,38 @@ class RiskCalculator:
         ]
         
         # Count detectors that flagged the email
+        flagged_count = sum(1 for s in scores if s >= 50)
+        
+        # Confidence: how many detectors agree
+        confidence = (flagged_count / len(scores)) * 100
+        
+        return {
+            'confidence_percentage': confidence,
+            'detectors_flagged': flagged_count,
+            'total_detectors': len(scores),
+            'consensus': 'Strong' if flagged_count >= 3 else 'Moderate' if flagged_count >= 2 else 'Weak'
+        }
+    
+    def get_confidence_indicator_sms(self, scores_dict):
+        """
+        Calculate confidence in the SMS detection (no attachment detector).
+        Higher confidence when multiple detectors agree.
+        
+        Args:
+            scores_dict (dict): Dictionary with detection scores
+        
+        Returns:
+            dict: Confidence metrics
+        """
+        scores = [
+            min(scores_dict.get('keyword_score', 0) * 3.33, 100),
+            min(scores_dict.get('url_score', 0) * 4, 100),
+            scores_dict.get('regex_score', 0),
+            min(scores_dict.get('sender_score', 0) * 5, 100),
+            scores_dict.get('ai_score', 0)
+        ]
+        
+        # Count detectors that flagged the message
         flagged_count = sum(1 for s in scores if s >= 50)
         
         # Confidence: how many detectors agree

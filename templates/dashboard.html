@@ -102,9 +102,9 @@
                     <li>Offer validation</li>
                     <li>Instant feedback</li>
                 </ul>
-                <button class="btn-block" disabled title="Coming soon">
-                    <i class="fas fa-lock"></i> Coming Soon
-                </button>
+                <a href="{{ url_for('sms_analyzer') }}" class="btn-block">
+                    <i class="fas fa-arrow-right"></i> Start Analysis
+                </a>
             </div>
         </div>
 
@@ -121,15 +121,15 @@
             </div>
             <div class="detector-card-body">
                 <ul class="detector-features">
-                    <li>Domain legitimacy</li>
-                    <li>SSL verification</li>
-                    <li>Reputation scoring</li>
+                    <li>URL structure analysis</li>
+                    <li>HTTPS usage checks</li>
+                    <li>Suspicious wording detection</li>
                     <li>Brand impersonation</li>
-                    <li>Redirects tracking</li>
+                    <li>AI-assisted assessment</li>
                 </ul>
-                <button class="btn-block" disabled title="Coming soon">
-                    <i class="fas fa-lock"></i> Coming Soon
-                </button>
+                <a href="{{ url_for('url_analyzer') }}" class="btn-block" style="display: block; text-align: center; text-decoration: none;">
+                    <i class="fas fa-arrow-right"></i> Analyze URL
+                </a>
             </div>
         </div>
     </div>
