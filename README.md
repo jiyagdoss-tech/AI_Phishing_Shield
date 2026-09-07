@@ -1,6 +1,6 @@
 # AI Phishing Shield
 
-AI Phishing Shield is a local Flask web application for analyzing email content for phishing indicators. It combines deterministic security checks with optional local AI reasoning, presents an explainable risk assessment, and stores analysis results in SQLite for later review.
+AI Phishing Shield is a local Flask web application for analyzing **email, SMS text messages, and website URLs** for phishing indicators. It combines deterministic security checks with optional local AI reasoning, presents an explainable risk assessment, and stores analysis results in SQLite for later review.
 
 The project is designed for cybersecurity education, controlled demonstrations, and local experimentation. It is not a replacement for an enterprise email security gateway or a professional incident-response process.
 
@@ -8,7 +8,9 @@ The project is designed for cybersecurity education, controlled demonstrations, 
 
 - [Why This Project Exists](#why-this-project-exists)
 - [What the Project Does](#what-the-project-does)
+- [Recent Changes](#recent-changes)
 - [Key Features](#key-features)
+- [Screenshots and Page Guide](#screenshots-and-page-guide)
 - [How the Application Works](#how-the-application-works)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
@@ -22,7 +24,6 @@ The project is designed for cybersecurity education, controlled demonstrations, 
 - [Security and Privacy](#security-and-privacy)
 - [Educational Value](#educational-value)
 - [Limitations and Future Work](#limitations-and-future-work)
-- [Contacts](#contacts)
 
 ## Why This Project Exists
 
@@ -32,15 +33,37 @@ The application is also intended as a learning tool. It shows how a web interfac
 
 ## What the Project Does
 
-The application accepts raw email content through a browser. It then:
+The application accepts raw email content, SMS text messages, or a website URL through a browser. It then:
 
-1. Parses useful email fields such as sender, subject, links, and attachments.
-2. Runs keyword, URL, regular-expression, sender, and attachment checks.
+1. Parses useful fields such as sender, subject, links, phone numbers, and attachments (for email/SMS) or domain structure (for URLs).
+2. Runs keyword, URL, regular-expression, sender, and attachment checks appropriate to the content type.
 3. Optionally asks a local Ollama/Mistral model for contextual reasoning.
 4. Combines detector scores into a final risk score from 0 to 100.
 5. Assigns a risk level: Low, Moderate, High, or Critical.
 6. Displays indicators, recommendations, detector scores, and an explanation.
-7. Saves the result and relevant email information to SQLite.
+7. Saves the result and relevant information to SQLite.
+
+## Recent Changes
+
+This section summarizes the most recent feature work added to the project:
+
+### SMS (smishing) detector added
+
+- New [`SMSParser`](utils/parsers/sms_parser.py) extracts sender, message body, links, and phone numbers from pasted SMS text (accepts either raw text or `From:`/`Message:` style fields).
+- New [`SMSSenderDetector`](utils/detectors/sms_sender_detector.py) classifies the sender as a short code, ordinary phone number, or alphanumeric ID, and flags brand impersonation, premium-rate numbers, and spoofed sender IDs.
+- New SMS analyzer page and `POST /api/analyze-sms` endpoint, reusing the keyword/URL/regex detectors and AI analyzer with SMS-specific prompts and score weighting (no attachment detector, since SMS has no file attachments).
+
+### Website URL detector added
+
+- New [`URLParser`](utils/parsers/url_parser.py) normalizes and validates a pasted URL (adds `https://` if missing a scheme, extracts domain/port/path/query parameters).
+- `URLDetector.analyze_standalone_url()` checks a single URL for lexical phishing signals: missing HTTPS, IP-address hosts, URL shorteners, embedded credentials, punycode domains, excessive subdomains, non-standard ports, unusually long URLs, and account-action wording.
+- New URL analyzer page and `POST /api/analyze-url` endpoint, combining lexical findings (60% weight) with AI reasoning (40% weight).
+
+### Typosquat / brand-impersonation detection fix
+
+- Added a shared fuzzy-matching helper, `TyposquatHelpers` (in [`utils/helpers.py`](utils/helpers.py)), that uses Levenshtein (edit-distance) comparison to catch lookalike brand names such as `ntflx.com` for `netflix.com` or `amzn-support.net` for `amazon.com`.
+- Previously, all three brand-impersonation checks (URL, email sender, SMS sender) only matched an **exact substring** of the brand name, so abbreviated/character-dropped typosquats were invisible to the detectors. All three now use fuzzy matching in addition to the original exact-match checks.
+- A confirmed brand-impersonation or typosquat match on a standalone URL now floors the final score at Critical, since it is one of the most decisive phishing signals available for a bare URL with no other corroborating detectors.
 
 ## Key Features
 
@@ -50,14 +73,27 @@ The application accepts raw email content through a browser. It then:
 - Upload `.txt` or `.eml` files.
 - Extract sender, subject, URLs, email addresses, and attachment information.
 
+### SMS (smishing) analysis
+
+- Paste raw SMS text, either plain message text or structured `From:`/`Message:` fields.
+- Classify the sender as a short code, ordinary phone number, or alphanumeric ID.
+- Extract message body, links, and any phone numbers referenced in the text.
+- Detect brand impersonation and spoofed sender IDs, including typosquatted lookalikes.
+
+### Website URL analysis
+
+- Paste a bare or full website URL (a missing `https://` scheme is added automatically).
+- Inspect the URL's structure for phishing signals without visiting the destination: missing HTTPS, IP-address hosts, shortener services, embedded credentials, punycode, excessive subdomains, non-standard ports, unusually long URLs, and account-action wording.
+- Detect brand impersonation and typosquatted domains (for example `ntflx.com` or `amaz0n-support.com`).
+
 ### Multi-detector analysis
 
 - Keyword analysis for urgency, fear, and credential-request language.
 - URL analysis for shortened URLs, IP-based links, and suspicious domains.
 - Regular-expression matching for known phishing patterns.
-- Sender reputation checks for suspicious domains and impersonation patterns.
-- Attachment checks for dangerous extensions and macro-enabled files.
-- Optional AI reasoning through the locally hosted Mistral model.
+- Sender reputation checks for suspicious domains, homograph attacks, and brand impersonation, including fuzzy/typosquat matching (for example `ntflx-security.com` or `amzn-support.net`).
+- Attachment checks for dangerous extensions and macro-enabled files (email only).
+- Optional AI reasoning through the locally hosted Mistral model, with content-specific prompts for email, SMS, and URL analysis.
 
 ### Explainable results
 
@@ -70,7 +106,7 @@ The application accepts raw email content through a browser. It then:
 
 ### History and dashboard
 
-- Store analyses in a local SQLite database.
+- Store analyses in a local SQLite database, across all three analysis types (email, SMS, URL).
 - Review previous results with date, sender, subject, score, and risk level.
 - Search and filter history.
 - Export history as CSV.
@@ -79,6 +115,47 @@ The application accepts raw email content through a browser. It then:
 ### Education
 
 The application includes pages explaining phishing types, common warning signs, protection practices, and actions to take after a possible compromise.
+
+## Screenshots and Page Guide
+
+The application is a single-page-style dashboard with a persistent sidebar. Each entry below explains what that page does and links to its route.
+
+### Dashboard (`/dashboard`)
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+The landing page after opening the application. It shows a welcome banner with quick links to the analyzer and history pages, aggregate statistics (total analyses, detection rate, high-risk count, safe count), and a "Get Started" section with cards for each detector (Email, SMS, URL) that link directly to their analyzer pages. A "Recent Analyses" table at the bottom shows the latest saved results.
+
+### Email Detector (`/analyzer`)
+
+![Email Phishing Detector](docs/screenshots/email-detector.png)
+
+Paste raw email content (ideally including `From`, `To`, `Subject`, and body) or upload a `.txt`/`.eml` file, then select **Analyze Email**. The page displays a risk gauge (0-100), risk-level badge, confidence percentage, and a breakdown of five detector scores (Keyword, URL, Regex, Sender, Attachment). Below the grid, it shows top concerns, the full AI analysis (risk level, concerns, explanation, recommendation), and a phishing-indicator tip. Results can be saved to history or marked for blocking/reporting.
+
+### SMS Detector (`/sms-analyzer`)
+
+![SMS Phishing Detector](docs/screenshots/sms-detector.png)
+
+Paste SMS/text message content, either the raw message or structured `From:`/`Message:` fields, then select **Analyze SMS**. Functionally identical to the Email Detector, but tuned for text messages: it shows four detector scores instead of five (Keyword, URL, Regex, Sender - there is no Attachment detector, since SMS messages carry no file attachments), and the sender check classifies the message as coming from a short code, ordinary phone number, or alphanumeric sender ID.
+
+### URL Detector (`/url-analyzer`)
+
+![Website URL Detector](docs/screenshots/url-detector.png)
+
+Enter a website address (a missing `https://` scheme is added automatically) and select **Analyze URL**. Because a bare URL carries no body text or attachments, this page only shows two detector scores: URL Structure (lexical checks such as HTTPS usage, IP-address hosts, shorteners, punycode, and brand/typosquat impersonation) and AI Analysis (contextual reasoning from the local model). The detector does not visit or render the destination website - it only evaluates the URL string and structure.
+
+### History (`/history`)
+
+Lists every saved analysis (email, SMS, or URL) with its timestamp, type, risk score, and risk level. Supports searching by sender/subject, filtering by risk level, paging through results, and exporting the filtered set as a CSV file.
+
+### About (`/about`)
+
+Describes the project's mission and summarizes how the six-detector pipeline (keyword, URL, regex, sender, attachment, AI) works together to produce a risk score.
+
+### Education (`/education`)
+
+A reference guide covering what phishing is, common phishing types, how to spot warning signs, protective practices, and what to do if you believe you have been compromised.
+
 
 ## How the Application Works
 
@@ -89,14 +166,18 @@ Browser
    v
 Flask application (app.py)
    |
-   +--> EmailParser
-   +--> KeywordDetector
-   +--> URLDetector
-   +--> RegexDetector
-   +--> SenderDetector
-   +--> AttachmentDetector
-   +--> AIAnalyzer --> Ollama/Mistral, when available
-   +--> RiskCalculator
+   +--> PhishingDetectionEngine
+   |       |
+   |       +-- analyze_email()  --> EmailParser, KeywordDetector, URLDetector,
+   |       |                        RegexDetector, SenderDetector, AttachmentDetector
+   |       +-- analyze_sms()    --> SMSParser, KeywordDetector, URLDetector,
+   |       |                        RegexDetector, SMSSenderDetector
+   |       +-- analyze_url()    --> URLParser, URLDetector.analyze_standalone_url()
+   |       |
+   |       +-- AIAnalyzer --> Ollama/Mistral, when available (content-specific prompts)
+   |       +-- RiskCalculator (per-content-type weighting)
+   |       +-- TyposquatHelpers (shared fuzzy brand-matching, used by
+   |               URLDetector, SenderDetector, and SMSSenderDetector)
    |
    +--> DatabaseManager --> SQLite
    |
@@ -104,7 +185,8 @@ Flask application (app.py)
 JSON response and rendered results
 ```
 
-The main analysis route is `POST /api/analyze`. The Flask route accepts JSON, form data, or an uploaded file, invokes `PhishingDetectionEngine`, saves the result, and returns a JSON response for the analyzer page.
+
+The three analysis routes are `POST /api/analyze` (email), `POST /api/analyze-sms` (SMS), and `POST /api/analyze-url` (website URL). Each route accepts JSON (or, for email, form data or an uploaded file), invokes the matching `PhishingDetectionEngine` method, saves the result, and returns a JSON response for its analyzer page.
 
 ## Technology Stack
 
@@ -145,25 +227,31 @@ AI-Phishing-Shield/
 |
 |-- models/
 |   |-- __init__.py
-|   `-- detection_engine.py        Detector pipeline and result aggregation
+|   `-- detection_engine.py        Detector pipelines: analyze_email(), analyze_sms(), analyze_url()
 |
 |-- utils/
-|   |-- helpers.py                 Shared rendering or utility helpers
+|   |-- helpers.py                 Shared helpers, including TyposquatHelpers (fuzzy brand matching)
 |   |-- analyzers/
-|   |   |-- ai_analyzer.py         Ollama integration and AI fallback
-|   |   `-- risk_calculator.py     Risk score and risk-level calculation
+|   |   |-- ai_analyzer.py         Ollama integration, per-content-type prompts, and AI fallback
+|   |   `-- risk_calculator.py     Risk score and risk-level calculation (per content type)
 |   |-- detectors/
 |   |   |-- keyword_detector.py    Suspicious language detection
 |   |   |-- regex_detector.py      Pattern matching
-|   |   `-- url_detector.py        URL inspection
+|   |   |-- url_detector.py        URL inspection and standalone URL analysis
+|   |   |-- sender_detector.py     Email sender reputation and typosquat detection
+|   |   |-- sms_sender_detector.py SMS sender/short-code reputation and typosquat detection
+|   |   `-- attachment_detector.py Dangerous file-type and macro detection (email only)
 |   `-- parsers/
 |       |-- email_parser.py        Sender, subject, links, and body parsing
-|       `-- amulya.txt             Parser-related reference data
+|       |-- sms_parser.py          SMS sender, body, link, and phone parsing
+|       `-- url_parser.py          Website URL normalization and parsing
 |
 |-- templates/
 |   |-- base.html                  Shared Jinja layout
 |   |-- index.html                 Home page
 |   |-- analyzer.html              Email analysis interface
+|   |-- sms_analyzer.html          SMS analysis interface
+|   |-- url_analyzer.html          Website URL analysis interface
 |   |-- dashboard.html             Statistics and recent analyses
 |   |-- history.html               Stored analysis history
 |   |-- about.html                 Project overview
@@ -179,6 +267,8 @@ AI-Phishing-Shield/
 |   `-- history.js                 History implementation reference
 |
 |-- uploads/                       Uploaded email files
+|-- docs/
+|   `-- screenshots/                Page screenshots referenced in this README
 `-- database/phishing.db           Created automatically at runtime
 ```
 
@@ -277,6 +367,20 @@ Use `kill -9 <PID>` only when a normal termination does not work and you have co
 4. Select Analyze Email.
 5. Review the risk score, detector results, indicators, AI explanation, and recommendations.
 
+### Analyze an SMS message
+
+1. Open the SMS Detector page.
+2. Paste the text message content, either as plain text or with `From:`/`Message:` fields.
+3. Select Analyze SMS.
+4. Review the risk score, sender classification, detector results, and AI explanation.
+
+### Analyze a website URL
+
+1. Open the URL Detector page.
+2. Enter a website address (a missing `https://` scheme is added automatically).
+3. Select Analyze URL.
+4. Review the risk score, lexical URL findings, and AI explanation. The tool evaluates the URL string only and does not visit the destination.
+
 ### Review history
 
 1. Open the History page.
@@ -294,6 +398,8 @@ Use the Education page to study phishing types, warning signs, protection steps,
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `POST` | `/api/analyze` | Analyze pasted or uploaded email content and save the result |
+| `POST` | `/api/analyze-sms` | Analyze SMS content and save the result |
+| `POST` | `/api/analyze-url` | Analyze a website URL and save the result |
 | `GET` | `/api/analyses` | Return saved analyses for the history page |
 | `GET` | `/api/analyses?limit=5` | Return a limited set of recent analyses |
 | `GET` | `/api/stats` | Return aggregate analysis statistics |
@@ -430,7 +536,8 @@ Current limitations include:
 - The application is intended for local development and education.
 - AI quality depends on the installed Ollama model and local resources.
 - Some detector rules are heuristic and require ongoing tuning.
-- SMS and standalone URL detection pages are not implemented.
+- Typosquat detection uses edit-distance thresholds tuned for common cases; it can still miss more elaborate lookalikes and, rarely, flag legitimate short domain names.
+- URL analysis evaluates address structure and metadata; it does not visit the destination or inspect live website content.
 - The history detail action is currently a placeholder in the active template.
 - Page-specific JavaScript is duplicated between inline template scripts and reference files in `static/`.
 
@@ -441,16 +548,8 @@ Possible future improvements include:
 - Implementing full history detail views and safer HTML rendering throughout.
 - Adding authentication and role-based access for multi-user deployments.
 - Adding structured logging, pagination at the API layer, and production deployment configuration.
-- Supporting SMS, URL, and website analysis as separate workflows.
+- Expanding the monitored brand list and typosquat coverage used by the URL, email, and SMS sender detectors.
 
 ## License and Contributions
 
 This repository is maintained as an educational project. Contributions that improve detection accuracy, documentation, accessibility, testing, or secure coding practices are welcome.
-
-## Contacts
-
-If you have any questions you can reach out to the below email:
-
-- Email: jiya.g.doss@gmail.com
-
-
