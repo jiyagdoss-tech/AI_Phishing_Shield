@@ -4,6 +4,9 @@ Analyzes URLs for phishing characteristics.
 """
 
 import re
+from urllib.parse import urlparse
+
+from utils.helpers import TyposquatHelpers
 
 
 class URLDetector:
@@ -91,32 +94,6 @@ class URLDetector:
         
         return False
     
-    def check_domain_typo(self, url, legitimate_domain='amazon.com'):
-        """
-        Check for common typosquatting patterns.
-        
-        Args:
-            url (str): URL to check
-            legitimate_domain (str): Domain to compare against
-        
-        Returns:
-            bool: True if URL looks like a typo
-        """
-        url_lower = url.lower()
-        
-        # Look for common typosquatting tricks
-        typo_patterns = [
-            r'0',  # Zero instead of O
-            r'l',  # lowercase L instead of I
-            r'1',  # One instead of I or L
-        ]
-        
-        # Check for extra characters (e.g., amaz0n instead of amazon)
-        if '0' in url_lower and legitimate_domain.replace('o', '0') in url_lower:
-            return True
-        
-        return False
-    
     def analyze_urls(self, text):
         """
         Complete URL analysis.
@@ -171,3 +148,77 @@ class URLDetector:
         score += min(url_analysis['suspicion_count'] * 5, 25)
         
         return score
+
+    def analyze_standalone_url(self, url):
+        """Analyze one normalized website URL using lexical phishing signals."""
+        parsed = urlparse(url)
+        domain = (parsed.hostname or '').lower()
+        full_url = url.lower()
+        findings = []
+
+        def add(code, description, points):
+            findings.append({
+                'code': code,
+                'description': description,
+                'points': points
+            })
+
+        if parsed.scheme != 'https':
+            add('no_https', 'The URL does not use HTTPS', 15)
+        if self.is_ip_address(domain):
+            add('ip_host', 'The URL uses an IP address instead of a domain name', 25)
+        if self.is_url_shortened(url):
+            add('shortener', 'The URL uses a shortening service that hides its destination', 25)
+        if parsed.username or '@' in parsed.netloc:
+            add('embedded_credentials', 'The URL contains embedded user information or an @ symbol', 25)
+        if domain.startswith('xn--') or '.xn--' in domain:
+            add('punycode', 'The domain uses punycode and may imitate another name', 20)
+        if domain.count('.') >= 3:
+            add('many_subdomains', 'The URL contains an unusually deep subdomain chain', 10)
+        if parsed.port and parsed.port not in (80, 443):
+            add('unusual_port', 'The URL uses a non-standard web port', 10)
+        if len(url) > 120:
+            add('long_url', 'The URL is unusually long and may hide its destination', 10)
+
+        action_terms = [term for term in self.suspicious_keywords if term in full_url]
+        if action_terms:
+            add('action_terms', f"The URL contains account-action wording: {', '.join(action_terms[:4])}", 15)
+
+        official_domains = {
+            'amazon': ('amazon.com', 'amazon.co.uk'),
+            'apple': ('apple.com', 'icloud.com'),
+            'google': ('google.com', 'gmail.com'),
+            'microsoft': ('microsoft.com', 'outlook.com'),
+            'paypal': ('paypal.com',),
+            'netflix': ('netflix.com',),
+        }
+        brand_matched = False
+        for brand, legitimate_domains in official_domains.items():
+            if brand in domain and not any(domain == item or domain.endswith(f'.{item}') for item in legitimate_domains):
+                add('brand_impersonation', f'The domain mentions {brand} but is not an official {brand} domain', 35)
+                brand_matched = True
+                break
+
+        # Fuzzy/typo check - catches lookalikes like "ntflx.com" or "amaz0n.com"
+        # that don't literally contain the brand name, so the substring check above misses them
+        if not brand_matched:
+            domain_labels = [label for label in re.split(r'[.\-]', domain) if label and label != 'www']
+            typo_match = TyposquatHelpers.find_typosquat_match(domain_labels, list(official_domains.keys()))
+            if typo_match:
+                add(
+                    'typosquat_brand',
+                    f"The domain \"{typo_match['candidate']}\" closely resembles the brand "
+                    f"\"{typo_match['brand']}\" (possible typosquat)",
+                    35
+                )
+
+        if '-' in domain and action_terms:
+            add('hyphenated_action_domain', 'The domain combines hyphens with account-action wording', 15)
+
+        score = min(sum(item['points'] for item in findings), 100)
+        return {
+            'url': url,
+            'domain': domain,
+            'findings': findings,
+            'risk_score': score
+        }
