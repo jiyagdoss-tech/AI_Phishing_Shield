@@ -562,3 +562,4 @@ class PhishingDetectionEngine:
                 unique_recommendations.append(rec)
         
         return unique_recommendations
+        
