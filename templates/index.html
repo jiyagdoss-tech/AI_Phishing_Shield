@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block header_title %}Welcome to PhishShield{% endblock %}
+{% block header_subtitle %}Intelligent phishing detection powered by AI{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto;">
+    <!-- HERO SECTION -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; margin-bottom: 4rem;">
+        <div>
+            <h1 style="font-size: 2.5rem; margin-bottom: 1rem; line-height: 1.2;">
+                Detect Phishing Emails with AI
+            </h1>
+            <p style="font-size: 1.125rem; color: var(--gray-700); line-height: 1.8; margin-bottom: 2rem;">
+                PhishShield uses advanced machine learning and pattern recognition to identify 
+                phishing attacks before they can harm you. Analyze emails instantly and learn how 
+                to stay safe online.
+            </p>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <a href="{{ url_for('analyzer') }}" class="btn btn-primary" style="padding: 1rem 2rem; font-size: 1rem;">
+                    <i class="fas fa-rocket"></i> Start Analyzing
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="padding: 1rem 2rem; font-size: 1rem;">
+                    <i class="fas fa-chart-line"></i> View Dashboard
+                </a>
+            </div>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 8rem; opacity: 0.5;">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- FEATURES SECTION -->
+    <div style="margin-bottom: 4rem;">
+        <h2 style="text-align: center; font-size: 2rem; margin-bottom: 3rem;">Key Features</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem;">
+            <!-- Feature 1 -->
+            <div style="background: white; padding: 2rem; border-radius: var(--radius); box-shadow: var(--shadow);">
+                <div style="font-size: 2.5rem; margin-bottom: 1rem;">
+                    <i class="fas fa-brain" style="color: var(--primary-blue);"></i>
+                </div>
+                <h3 style="margin-bottom: 0.75rem;">AI-Powered Detection</h3>
+                    <p style="color: var(--gray-600);">
+                        Uses local Mistral AI to provide contextual reasoning about suspicious language, sender behavior, links,
+                        and social-engineering tactics.
+                    </p>
+            </div>
+
+            <!-- Feature 2 -->
+            <div style="background: white; padding: 2rem; border-radius: var(--radius); box-shadow: var(--shadow);">
+                <div style="font-size: 2.5rem; margin-bottom: 1rem;">
+                    <i class="fas fa-code-branch" style="color: var(--warning-orange);"></i>
+                </div>
+                <h3 style="margin-bottom: 0.75rem;">Multiple Detection Methods</h3>
+                    <p style="color: var(--gray-600);">
+                        Combines independent keyword, URL, pattern, sender,
+                        attachment, and AI checks for a broader assessment.
+                    </p>
+            </div>
+
+            <!-- Feature 3 -->
+            <div style="background: white; padding: 2rem; border-radius: var(--radius); box-shadow: var(--shadow);">
+                <div style="font-size: 2.5rem; margin-bottom: 1rem;">
+                    <i class="fas fa-database" style="color: var(--success-green);"></i>
+                </div>
+                <h3 style="margin-bottom: 0.75rem;">No API Keys Required</h3>
+                    <p style="color: var(--gray-600);">
+                        Runs locally with Ollama, so email content is processed
+                        on your machine instead of being sent to a cloud AI API.
+                    </p>
+            </div>
+
+            <!-- Feature 4 -->
+            <div style="background: white; padding: 2rem; border-radius: var(--radius); box-shadow: var(--shadow);">
+                <div style="font-size: 2.5rem; margin-bottom: 1rem;">
+                    <i class="fas fa-chart-pie" style="color: var(--danger-red);"></i>
+                </div>
+                <h3 style="margin-bottom: 0.75rem;">Detailed Score Breakdown</h3>
+                    <p style="color: var(--gray-600);">
+                        Review the individual detector scores and findings
+                        behind the final risk assessment.
+                    </p>
+            </div>
+
+            <!-- Feature 5 -->
+            <div style="background: white; padding: 2rem; border-radius: var(--radius); box-shadow: var(--shadow);">
+                <div style="font-size: 2.5rem; margin-bottom: 1rem;">
+                    <i class="fas fa-history" style="color: #3b82f6;"></i>
+                </div>
+                <h3 style="margin-bottom: 0.75rem;">Analysis History</h3>
+                    <p style="color: var(--gray-600);">
+                        Review saved analyses with timestamps, sender details,
+                        subjects, scores, and risk levels.
+                    </p>
+            </div>
+
+            <!-- Feature 6 -->
+            <div style="background: white; padding: 2rem; border-radius: var(--radius); box-shadow: var(--shadow);">
+                <div style="font-size: 2.5rem; margin-bottom: 1rem;">
+                    <i class="fas fa-graduation-cap" style="color: #8b5cf6;"></i>
+                </div>
+                <h3 style="margin-bottom: 0.75rem;">Educational Resource</h3>
+                    <p style="color: var(--gray-600);">
+                        Study phishing indicators, attack techniques, and
+                        practical steps for safer email handling.
+                    </p>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align: center; padding: 3rem; background: var(--gray-100); border-radius: var(--radius); margin-bottom: 2rem;">
+        <h2 style="margin-bottom: 1rem;">Ready to Protect Yourself?</h2>
+        <p style="color: var(--gray-700); margin-bottom: 2rem; font-size: 1.1rem;">
+            Start analyzing emails and learn how to identify phishing attempts.
+        </p>
+        <a href="{{ url_for('analyzer') }}" class="btn btn-primary" style="padding: 1rem 2.5rem; font-size: 1rem;">
+            <i class="fas fa-shield-alt"></i> Analyze Your First Email
+        </a>
+    </div>
+</div>
+{% endblock %}

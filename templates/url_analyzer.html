@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block header_title %}Website URL Detector{% endblock %}
+{% block header_subtitle %}Analyze a website address for phishing and impersonation signals{% endblock %}
+{% block header_status %}<span id="statusText">Ready</span>{% endblock %}
+
+{% block content %}
+<div class="detector-container">
+    <div class="analyzer-grid">
+        <div class="input-section">
+            <h3>Website URL</h3>
+            <form id="urlAnalyzeForm">
+                <div class="form-group">
+                    <input
+                        id="urlInput"
+                        name="url"
+                        type="text"
+                        inputmode="url"
+                        autocomplete="url"
+                        placeholder="https://example.com/login"
+                        style="width: 100%; padding: 0.9rem; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 0.9rem;"
+                    >
+                </div>
+                <button type="submit" class="btn-analyze" id="analyzeBtn">
+                    <i class="fas fa-magnifying-glass"></i> Analyze URL
+                </button>
+            </form>
+            <div class="input-hint">
+                Enter the complete website address when possible. The detector analyzes the URL structure only and does not open the website.
+            </div>
+        </div>
+
+        <div>
+            <div class="gauge-card">
+                <div class="risk-gauge">
+                    <div class="gauge-circle" id="gaugeCircle" style="--gauge-pct: 0;">
+                        <div class="gauge-inner">
+                            <div class="gauge-score" id="resultScore">0</div>
+                            <div class="gauge-max">/100</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="risk-level-badge" id="resultBadge">Unknown</div>
+                <div class="gauge-subtext" id="detectorsFlaggedText">Awaiting analysis</div>
+            </div>
+
+            <div class="confidence-box">
+                <div class="confidence-label">CONFIDENCE</div>
+                <div class="confidence-value" id="resultConfidence">-</div>
+                <div class="confidence-sub" id="confidenceSub">-</div>
+            </div>
+
+            <button class="btn-action btn-default" id="saveHistoryBtn">
+                <i class="fas fa-clock-rotate-left"></i> View History
+            </button>
+        </div>
+
+        <div class="detector-list-card">
+            <div class="detector-row" id="row-url">
+                <div class="detector-row-top">
+                    <span><i class="fas fa-link"></i> URL Structure</span>
+                    <span class="flag-badge" style="display:none;">Flagged</span>
+                </div>
+                <div class="detector-row-bar"><div class="detector-row-bar-fill" style="width: 0%"></div></div>
+                <div class="detector-row-bottom">
+                    <span class="detector-row-desc">Awaiting analysis</span>
+                    <span class="detector-row-score">0/100</span>
+                </div>
+            </div>
+            <div class="detector-row" id="row-ai">
+                <div class="detector-row-top">
+                    <span><i class="fas fa-brain"></i> AI Analysis</span>
+                    <span class="flag-badge" style="display:none;">Flagged</span>
+                </div>
+                <div class="detector-row-bar"><div class="detector-row-bar-fill" style="width: 0%"></div></div>
+                <div class="detector-row-bottom">
+                    <span class="detector-row-desc">Awaiting analysis</span>
+                    <span class="detector-row-score">0/100</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loadingState" class="loading" style="display: none;">
+        <div class="spinner"></div>
+        <p style="color: var(--gray-600);">Analyzing the URL...</p>
+    </div>
+
+    <div id="errorState" style="display: none;">
+        <div style="margin-top: 1.25rem; padding: 1rem; background-color: #fee2e2; border-left: 4px solid #dc2626; border-radius: 6px; color: #991b1b;">
+            <strong><i class="fas fa-circle-exclamation"></i> Error:</strong>
+            <span id="urlErrorMessage"></span>
+        </div>
+    </div>
+
+    <div id="resultsBelow" style="display: none;">
+        <div class="recommendation-banner" id="recommendationBanner">
+            <div class="recommendation-banner-title"><i class="fas fa-triangle-exclamation"></i> Recommendation</div>
+            <p id="recommendationText"></p>
+        </div>
+
+        <div class="panel-card" style="margin-top: 1.25rem;">
+            <h3 class="section-title"><i class="fas fa-list-check"></i> URL Findings</h3>
+            <div class="concerns-list" id="findingsList"></div>
+        </div>
+
+        <div class="panel-card" style="margin-top: 1.25rem;">
+            <h3 class="section-title"><i class="fas fa-circle-info"></i> AI Analysis</h3>
+            <div class="ai-analysis-section">
+                <p id="aiExplanation"></p>
+                <ul id="aiRecommendations" style="margin: 1rem 0 0 1.25rem;"></ul>
+            </div>
+        </div>
+
+        <div class="tip-banner">
+            <i class="fas fa-lightbulb"></i>
+            <div><strong>Safety reminder:</strong> A familiar brand name inside a URL does not prove ownership. Verify the registered domain before entering credentials.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateUrlDetectorRow(key, detector) {
+    const row = document.getElementById(`row-${key}`);
+    const percentage = Math.round((detector.score / detector.max) * 100);
+    const riskClass = percentage >= 67 ? 'high' : percentage >= 34 ? 'moderate' : 'low';
+    row.querySelector('.detector-row-bar-fill').style.width = `${percentage}%`;
+    row.querySelector('.detector-row-bar-fill').className = `detector-row-bar-fill ${riskClass}`;
+    row.querySelector('.detector-row-desc').textContent = detector.description;
+    row.querySelector('.detector-row-score').textContent = `${detector.score}/${detector.max}`;
+    row.querySelector('.flag-badge').style.display = detector.flagged ? 'inline-block' : 'none';
+}
+
+function showUrlError(message) {
+    document.getElementById('statusText').textContent = 'Error';
+    document.getElementById('urlErrorMessage').textContent = message;
+    document.getElementById('errorState').style.display = 'block';
+}
+
+function displayUrlResults(result) {
+    const level = result.risk_level.toLowerCase();
+    const score = Math.round(result.risk_score);
+    document.getElementById('statusText').textContent = 'Analyzed';
+    document.getElementById('resultScore').textContent = score;
+    const gauge = document.getElementById('gaugeCircle');
+    gauge.style.setProperty('--gauge-pct', score);
+    gauge.className = `gauge-circle ${level}`;
+    const badge = document.getElementById('resultBadge');
+    badge.textContent = result.risk_level;
+    badge.className = `risk-level-badge ${level}`;
+    document.getElementById('detectorsFlaggedText').textContent = `${result.detectors_flagged} of ${result.total_detectors} checks flagged this URL`;
+    document.getElementById('resultConfidence').textContent = `${result.confidence_percentage}%`;
+    document.getElementById('confidenceSub').textContent = `${result.confidence} consensus`;
+    updateUrlDetectorRow('url', result.detectors.url);
+    updateUrlDetectorRow('ai', result.detectors.ai);
+
+    const banner = document.getElementById('recommendationBanner');
+    banner.className = `recommendation-banner ${level}`;
+    document.getElementById('recommendationText').textContent = result.recommendation;
+
+    const findingsList = document.getElementById('findingsList');
+    findingsList.replaceChildren();
+    if (!result.findings.length) {
+        findingsList.textContent = 'No strong lexical warnings were detected. Continue to verify the domain independently.';
+    } else {
+        result.findings.forEach(finding => {
+            const item = document.createElement('div');
+            item.className = `concern-item ${finding.points >= 25 ? 'high' : 'medium'}`;
+            const content = document.createElement('div');
+            const title = document.createElement('div');
+            title.className = 'concern-title';
+            title.textContent = finding.description;
+            const detail = document.createElement('div');
+            detail.className = 'concern-desc';
+            detail.textContent = `${finding.points} risk points`;
+            content.append(title, detail);
+            item.append(content);
+            findingsList.append(item);
+        });
+    }
+
+    document.getElementById('aiExplanation').textContent = result.explanation || result.ai_explanation;
+    const recommendations = document.getElementById('aiRecommendations');
+    recommendations.replaceChildren();
+    (result.recommendation_bullets || []).forEach(text => {
+        const item = document.createElement('li');
+        item.textContent = text;
+        recommendations.append(item);
+    });
+    document.getElementById('resultsBelow').style.display = 'block';
+}
+
+document.getElementById('urlAnalyzeForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const url = document.getElementById('urlInput').value.trim();
+    document.getElementById('errorState').style.display = 'none';
+    if (!url) {
+        showUrlError('Please enter a website URL');
+        return;
+    }
+
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('resultsBelow').style.display = 'none';
+    document.getElementById('statusText').textContent = 'Analyzing...';
+    try {
+        const response = await fetch('/api/analyze-url', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url})
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'URL analysis failed');
+        displayUrlResults(result);
+    } catch (error) {
+        showUrlError(error.message);
+    } finally {
+        document.getElementById('loadingState').style.display = 'none';
+    }
+});
+
+document.getElementById('saveHistoryBtn').addEventListener('click', () => {
+    window.location.href = '{{ url_for("history") }}';
+});
+</script>
+{% endblock %}
