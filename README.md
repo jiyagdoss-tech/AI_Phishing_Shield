@@ -122,7 +122,7 @@ The application is a single-page-style dashboard with a persistent sidebar. Each
 
 ### Dashboard (`/dashboard`)
 
-![Dashboard](pictures/Screenshot%202026-09-20%20at%205.31.35%20PM.png)
+![Dashboard](docs/screenshots/dashboard.png)
 
 **Purpose:** The main landing page that provides an overview of all phishing analyses performed.
 
@@ -139,7 +139,7 @@ The application is a single-page-style dashboard with a persistent sidebar. Each
 
 ### Email Detector (`/analyzer`)
 
-![Email Phishing Detector](pictures/Screenshot%202026-09-20%20at%205.31.45%20PM.png)
+![Email Phishing Detector](docs/screenshots/email-detector.png)
 
 **Purpose:** Comprehensive email phishing analysis tool for detecting email-based attacks and social engineering.
 
@@ -170,7 +170,7 @@ The application is a single-page-style dashboard with a persistent sidebar. Each
 
 ### SMS Detector (`/sms-analyzer`)
 
-![SMS Phishing Detector](pictures/Screenshot%202026-09-20%20at%205.31.55%20PM.png)
+![SMS Phishing Detector](docs/screenshots/sms-detector.png)
 
 **Purpose:** Specialized detector for SMS and text message phishing (smishing) attacks.
 
@@ -201,7 +201,7 @@ The application is a single-page-style dashboard with a persistent sidebar. Each
 
 ### URL Detector (`/url-analyzer`)
 
-![Website URL Detector](pictures/Screenshot%202026-09-20%20at%205.32.03%20PM.png)
+![Website URL Detector](docs/screenshots/url-detector.png)
 
 **Purpose:** Standalone URL analysis to detect phishing indicators without visiting the destination.
 
