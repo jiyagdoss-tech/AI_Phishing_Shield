@@ -124,37 +124,215 @@ The application is a single-page-style dashboard with a persistent sidebar. Each
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-The landing page after opening the application. It shows a welcome banner with quick links to the analyzer and history pages, aggregate statistics (total analyses, detection rate, high-risk count, safe count), and a "Get Started" section with cards for each detector (Email, SMS, URL) that link directly to their analyzer pages. A "Recent Analyses" table at the bottom shows the latest saved results.
+**Purpose:** The main landing page that provides an overview of all phishing analyses performed.
+
+**Key Features:**
+- **Welcome Banner**: Quick links to email, SMS, and URL analyzers
+- **Aggregate Statistics**: Displays total number of analyses, detection rate percentage, high-risk count, and safe message count
+- **Quick Access Cards**: Three interactive cards (Email, SMS, URL) to launch analyzers directly
+- **Recent Analyses Table**: Shows the last 10 analyzed messages with timestamp, type, sender/URL, risk score, and risk level
+- **Dashboard Controls**: Filter by risk level, export results, and access detailed history
+
+**Use Case:** Start here to get a quick overview of your phishing detection history and launch a new analysis.
+
+---
 
 ### Email Detector (`/analyzer`)
 
 ![Email Phishing Detector](docs/screenshots/email-detector.png)
 
-Paste raw email content (ideally including `From`, `To`, `Subject`, and body) or upload a `.txt`/`.eml` file, then select **Analyze Email**. The page displays a risk gauge (0-100), risk-level badge, confidence percentage, and a breakdown of five detector scores (Keyword, URL, Regex, Sender, Attachment). Below the grid, it shows top concerns, the full AI analysis (risk level, concerns, explanation, recommendation), and a phishing-indicator tip. Results can be saved to history or marked for blocking/reporting.
+**Purpose:** Comprehensive email phishing analysis tool for detecting email-based attacks and social engineering.
+
+**Input Methods:**
+- Paste raw email content (including `From`, `To`, `Subject`, and body headers)
+- Upload `.txt` or `.eml` email files directly
+
+**Analysis Features:**
+- **Risk Gauge**: Visual 0-100 scale showing overall phishing risk
+- **Five Detector Scores**:
+  1. **Keyword Detector** - Detects urgency, fear, and credential-request language
+  2. **URL Detector** - Identifies suspicious links, shorteners, and credential harvesting URLs
+  3. **Regex Detector** - Pattern-matches known phishing indicators
+  4. **Sender Detector** - Checks for domain spoofing, homograph attacks, and brand impersonation
+  5. **Attachment Detector** - Scans for dangerous file types and macro-enabled documents
+
+- **Results Display**: 
+  - Risk level badge (Low, Moderate, High, Critical)
+  - Confidence percentage
+  - Top concerns list
+  - Full AI explanation (when Ollama is available)
+  - Actionable recommendations
+  - Phishing education tips
+
+**Actions:** Save to history, report to mail admin, or block sender
+
+---
 
 ### SMS Detector (`/sms-analyzer`)
 
 ![SMS Phishing Detector](docs/screenshots/sms-detector.png)
 
-Paste SMS/text message content, either the raw message or structured `From:`/`Message:` fields, then select **Analyze SMS**. Functionally identical to the Email Detector, but tuned for text messages: it shows four detector scores instead of five (Keyword, URL, Regex, Sender - there is no Attachment detector, since SMS messages carry no file attachments), and the sender check classifies the message as coming from a short code, ordinary phone number, or alphanumeric sender ID.
+**Purpose:** Specialized detector for SMS and text message phishing (smishing) attacks.
+
+**Input Format:**
+- Paste raw SMS text message
+- Can accept either plain message or structured format with `From:` and `Message:` labels
+
+**Analysis Features:**
+- **Four Detector Scores** (no attachment detection, as SMS doesn't carry files):
+  1. **Keyword Detector** - Urgency and credential-request language in texts
+  2. **URL Detector** - Shortened URLs and suspicious links
+  3. **Regex Detector** - Common SMS phishing patterns
+  4. **SMS Sender Detector** - Specialized for mobile:
+     - Classifies sender as short code, phone number, or alphanumeric ID
+     - Detects brand impersonation from ordinary phone numbers
+     - Flags premium-rate prefixes and spoofed sender IDs
+     - Identifies international number anomalies
+
+- **SMS-Specific Scoring**: Weighted differently than email (sender reputation is more critical in SMS)
+
+**Key SMS Patterns Detected:**
+- Premium-rate prefixes (900, 976)
+- Typosquatted brand names (e.g., `NTFLX-ALERT` for Netflix)
+- Unusual international numbers
+- Account-action wording in sender IDs
+
+---
 
 ### URL Detector (`/url-analyzer`)
 
 ![Website URL Detector](docs/screenshots/url-detector.png)
 
-Enter a website address (a missing `https://` scheme is added automatically) and select **Analyze URL**. Because a bare URL carries no body text or attachments, this page only shows two detector scores: URL Structure (lexical checks such as HTTPS usage, IP-address hosts, shorteners, punycode, and brand/typosquat impersonation) and AI Analysis (contextual reasoning from the local model). The detector does not visit or render the destination website - it only evaluates the URL string and structure.
+**Purpose:** Standalone URL analysis to detect phishing indicators without visiting the destination.
+
+**Input:**
+- Enter any website URL
+- Missing `https://` scheme is added automatically
+- Domain normalization applied
+
+**Analysis Features:**
+- **Two Detector Scores**:
+  1. **URL Structure Analysis (60% weight)** - Lexical checks:
+     - Missing HTTPS encryption
+     - IP-address based hosts (suspicious)
+     - URL shortener services (bit.ly, tinyurl, etc.)
+     - Embedded credentials (username:password@domain)
+     - Punycode domains (homograph attacks)
+     - Excessive subdomains (masking true domain)
+     - Non-standard ports (8080, 9000, etc.)
+     - Unusually long URLs
+     - Account-action wording (update, verify, confirm, secure)
+  
+  2. **AI Analysis (40% weight)** - Contextual reasoning from local AI model for domain legitimacy
+
+- **Brand Impersonation Detection**: Identifies typosquatted domains like:
+  - `ntflx.com` instead of `netflix.com`
+  - `amaz0n-support.com` instead of `amazon.com`
+  - `paypa1.com` instead of `paypal.com`
+
+- **Critical Signal**: Brand impersonation or confirmed typosquat immediately floors score to Critical
+
+**Important:** The detector only analyzes the URL structure—it does NOT visit or render the destination website, protecting you from malicious scripts and downloads.
+
+---
 
 ### History (`/history`)
 
-Lists every saved analysis (email, SMS, or URL) with its timestamp, type, risk score, and risk level. Supports searching by sender/subject, filtering by risk level, paging through results, and exporting the filtered set as a CSV file.
+**Purpose:** Centralized archive of all phishing analyses performed across all three analysis types (Email, SMS, URL).
+
+**Features:**
+- **Complete Analysis Log**: View every saved analysis with:
+  - Timestamp (date and time analyzed)
+  - Content type (Email, SMS, or URL)
+  - Sender email or SMS sender ID (or URL analyzed)
+  - Subject line (email only)
+  - Final risk score (0-100)
+  - Risk level badge (Low, Moderate, High, Critical)
+  
+- **Search & Filter**:
+  - Search by sender email address or subject line
+  - Filter by risk level to focus on high-risk messages
+  - Pagination to navigate large result sets
+  
+- **Export Capability**:
+  - Export filtered results as CSV file
+  - Use for auditing, compliance reporting, or external analysis
+  - Includes timestamp, type, sender, subject, score, and risk level
+  
+- **Drill Down**: Click any result to view full analysis details including all detector scores and AI explanation
+
+**Use Case:** Review your phishing detection history, identify patterns, and generate reports for security audits.
+
+---
 
 ### About (`/about`)
 
-Describes the project's mission and summarizes how the six-detector pipeline (keyword, URL, regex, sender, attachment, AI) works together to produce a risk score.
+**Purpose:** Educational overview of how AI Phishing Shield works and its methodology.
+
+**Content Includes:**
+- **Project Mission**: Understanding phishing as a social engineering threat
+- **Six-Detector Pipeline Explanation**:
+  1. **Keyword Analysis** - Identifies urgency, fear, and credential-request language
+  2. **URL Detector** - Inspects links for phishing indicators
+  3. **Regex Detector** - Pattern-matches known attack signatures
+  4. **Sender Detector** - Validates sender reputation and domain authenticity
+  5. **Attachment Detector** - Screens for malicious file types
+  6. **AI Reasoning** - Contextual analysis using local language model
+  
+- **Risk Score Calculation**: How individual detector scores combine into a final 0-100 risk assessment
+- **Design Philosophy**: Why multiple independent detectors provide better accuracy than single-signal detection
+- **Limitations & Scope**: What the tool can and cannot detect
+
+**Use Case:** Learn how the application analyzes phishing threats and understand detector confidence levels.
+
+---
 
 ### Education (`/education`)
 
-A reference guide covering what phishing is, common phishing types, how to spot warning signs, protective practices, and what to do if you believe you have been compromised.
+**Purpose:** Self-paced learning resource for understanding phishing threats and protection strategies.
+
+**Sections Include:**
+
+1. **What is Phishing?**
+   - Definition and history of phishing attacks
+   - Economic impact and threat landscape
+   - Why email, SMS, and web-based phishing are effective
+
+2. **Common Phishing Types**
+   - Email phishing (credential harvesting, malware delivery)
+   - Smishing (SMS-based phishing)
+   - Spear phishing (targeted attacks)
+   - Whaling (targeting executives)
+   - Business Email Compromise (BEC)
+   - URL/Link phishing
+
+3. **Warning Signs & Red Flags**
+   - Suspicious sender addresses and homograph attacks
+   - Urgency and pressure tactics
+   - Requests for credentials or personal information
+   - Mismatched URLs and shortened links
+   - Unusual attachments and file types
+   - Grammar and spelling errors
+   - Unexpected offers or threats
+
+4. **Protection Practices**
+   - Email authentication (SPF, DKIM, DMARC)
+   - Multi-factor authentication (MFA)
+   - Password managers and strong passwords
+   - Keeping software updated
+   - Browser security features
+   - Reporting suspicious messages
+   - Employee training best practices
+
+5. **What To Do If Compromised**
+   - Immediate steps after clicking a malicious link
+   - Credential change procedures
+   - Breach notification and reporting
+   - Credit monitoring
+   - Account recovery process
+   - Incident documentation
+
+**Use Case:** Educate yourself or your organization about phishing threats and build defensive awareness.
 
 
 ## How the Application Works

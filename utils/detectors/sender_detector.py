@@ -238,4 +238,3 @@ class SenderDetector:
             score += 2
         
         return min(score, 20)  # Max 20 points
-
